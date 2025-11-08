@@ -33,19 +33,23 @@ void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
 
 // Callback when data is received via ESP-NOW
 void OnDataRecv(uint8_t *mac_addr, uint8_t *data, uint8_t len) {
-  // Print MAC address of sender
-  Serial.print("[ESP-NOW] Received from: ");
+  // Send to serial in structured format: MAC|LENGTH|DATA\n
+  // This allows the WiFi bridge to parse and forward to MQTT
+
+  // Send MAC address (12 hex chars)
   for (int i = 0; i < 6; i++) {
     Serial.printf("%02X", mac_addr[i]);
-    if (i < 5) Serial.print(":");
   }
-  Serial.print(" | Data: ");
+  Serial.print("|");
 
-  // Print the received data to serial
+  // Send length (3 digits, zero-padded)
+  Serial.printf("%03d|", len);
+
+  // Send data
   for (int i = 0; i < len; i++) {
     Serial.write(data[i]);
   }
-  Serial.println();
+  Serial.println(); // End with newline
 }
 
 void initESPNow() {
@@ -90,8 +94,8 @@ void setup() {
   // Initialize ESP-NOW
   initESPNow();
 
-  Serial.println("\n[READY] Send data via Serial to broadcast via ESP-NOW");
-  Serial.println("[READY] ESP-NOW messages will appear on Serial");
+  Serial.println("\n[READY] ESP-NOW -> Serial format: MAC|LEN|DATA");
+  Serial.println("[READY] Serial -> ESP-NOW: Send text lines");
 }
 
 void loop() {
@@ -122,9 +126,6 @@ void loop() {
 
     uint8_t dataToSend[MAX_DATA_SIZE];
     serialBuffer.getBytes(dataToSend, dataLen + 1);
-
-    Serial.print("[SERIAL->ESP-NOW] Sending: ");
-    Serial.println(serialBuffer);
 
     // Send data via ESP-NOW
     esp_now_send(broadcastAddress, dataToSend, dataLen);
