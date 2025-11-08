@@ -60,8 +60,17 @@ void processSerialData(String& line) {
   String lenStr = line.substring(firstPipe + 1, secondPipe);
   int dataLen = lenStr.toInt();
 
-  // Extract data
-  String data = line.substring(secondPipe + 1);
+  // Extract data (only use the first dataLen bytes)
+  String fullData = line.substring(secondPipe + 1);
+  String data = fullData.substring(0, dataLen);
+
+  // Clean up data by truncating at first null byte
+  // This handles cases where sender includes garbage/uninitialized memory
+  int nullPos = data.indexOf('\0');
+  if (nullPos != -1) {
+    data = data.substring(0, nullPos);
+  }
+  int actualLen = data.length();
 
   Serial.print("[SERIAL->MQTT] MAC: ");
   Serial.print(macStr);
@@ -73,7 +82,7 @@ void processSerialData(String& line) {
     StaticJsonDocument<MQTT_BUFFER_SIZE> doc;
     doc["mac"] = macStr;
     doc["data"] = data;
-    doc["len"] = dataLen;
+    doc["len"] = actualLen;
 
     char jsonBuffer[MQTT_BUFFER_SIZE];
     serializeJson(doc, jsonBuffer);

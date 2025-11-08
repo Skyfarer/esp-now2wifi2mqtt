@@ -6,6 +6,7 @@
 #define SERIAL_BAUD 115200
 #define WIFI_CHANNEL 1
 #define MAX_DATA_SIZE 250
+#define LED_PIN 2  // Onboard LED (active LOW - LOW=on, HIGH=off)
 
 // Broadcast MAC address (sends to all ESP-NOW devices)
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -33,6 +34,9 @@ void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
 
 // Callback when data is received via ESP-NOW
 void OnDataRecv(uint8_t *mac_addr, uint8_t *data, uint8_t len) {
+  // Flash LED to indicate message received
+  digitalWrite(LED_PIN, LOW);  // Turn LED on (active LOW)
+
   // Send to serial in structured format: MAC|LENGTH|DATA\n
   // This allows the WiFi bridge to parse and forward to MQTT
 
@@ -50,6 +54,10 @@ void OnDataRecv(uint8_t *mac_addr, uint8_t *data, uint8_t len) {
     Serial.write(data[i]);
   }
   Serial.println(); // End with newline
+
+  // Turn LED off after a short delay
+  delay(50);
+  digitalWrite(LED_PIN, HIGH);  // Turn LED off (active LOW)
 }
 
 void initESPNow() {
@@ -87,6 +95,10 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(1000);
 
+  // Initialize LED
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);  // Turn LED off initially (active LOW)
+
   Serial.println("\n\n=================================");
   Serial.println("ESP-NOW <-> Serial Bridge");
   Serial.println("=================================");
@@ -96,6 +108,7 @@ void setup() {
 
   Serial.println("\n[READY] ESP-NOW -> Serial format: MAC|LEN|DATA");
   Serial.println("[READY] Serial -> ESP-NOW: Send text lines");
+  Serial.println("[INFO] Onboard LED will flash on ESP-NOW message received");
 }
 
 void loop() {
