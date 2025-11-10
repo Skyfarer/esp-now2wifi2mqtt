@@ -1,9 +1,10 @@
 # ESP-NOW to WiFi/MQTT Bridge
 
-A two-board ESP8266 solution that bridges ESP-NOW mesh networks to WiFi/MQTT infrastructure, eliminating channel conflicts between ESP-NOW and WiFi.
+I wanted to move my weather station and other devices off my house wifi. It just seems that every month or so I'm adding yet another device to my wifi. To reduce the attack surface, I decided to move my home weather station and other μcontroller controller devices to ESP-NOW.
+This means I need some way to bridge ESP-NOW to my homelab. Most of my μcontroller projects use a MQTT server on my Kubernetes cluster. This is the bridge from ESP-NOW ==> WiFi ==> MQTT.
 
 ## Why ESP8266? Aren't they old?
-Yes, I prefer the ESP32. But I had a bin with several of these laying around and decided to put them to work.
+Yes, I prefer the ESP32. But I had several ESP8266 boards laying around with nothing better to do. So I put them to work with this task.
 
 ## Overview
 
@@ -51,6 +52,8 @@ Board 1 (ESP-NOW)        Board 2 (WiFi/MQTT)
 ```
 
 ![ESP8266 boards wired together](images/boards-wired.jpg)
+
+![ESP8266 boards stacked together](images/boards-stacked.jpeg)
 
 **Note**: TX/RX pins are shared with USB serial. During development, you can only monitor one board at a time via USB. For production, power both boards externally and disconnect USB.
 
