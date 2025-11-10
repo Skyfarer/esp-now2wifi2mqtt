@@ -132,16 +132,73 @@ void loop() {
 
   // Send buffered data via ESP-NOW
   if (dataReady) {
-    uint8_t dataLen = serialBuffer.length();
+    // Check if message contains MAC address (format: MAC|DATA)
+    int pipePos = serialBuffer.indexOf('|');
+
+    uint8_t targetMac[6];
+    String messageData;
+    bool useSpecificMac = false;
+
+    if (pipePos == 12) {
+      // MAC address present (12 hex chars before pipe)
+      String macHex = serialBuffer.substring(0, pipePos);
+      messageData = serialBuffer.substring(pipePos + 1);
+
+      // Parse MAC address from hex string
+      bool validMac = true;
+      for (int i = 0; i < 6; i++) {
+        String byteStr = macHex.substring(i * 2, i * 2 + 2);
+        char* endPtr;
+        long val = strtol(byteStr.c_str(), &endPtr, 16);
+        if (*endPtr != '\0' || val < 0 || val > 255) {
+          validMac = false;
+          break;
+        }
+        targetMac[i] = (uint8_t)val;
+      }
+
+      if (validMac) {
+        useSpecificMac = true;
+        Serial.print("[SERIAL->ESP-NOW] Target MAC: ");
+        for (int i = 0; i < 6; i++) {
+          Serial.printf("%02X", targetMac[i]);
+          if (i < 5) Serial.print(":");
+        }
+        Serial.println();
+
+        // Add peer if not already added
+        if (!esp_now_is_peer_exist(targetMac)) {
+          esp_now_add_peer(targetMac, ESP_NOW_ROLE_COMBO, WIFI_CHANNEL, NULL, 0);
+          Serial.println("[ESP-NOW] Added new peer");
+        }
+      } else {
+        // Invalid MAC, use entire buffer as message data
+        messageData = serialBuffer;
+      }
+    } else {
+      // No MAC address, broadcast to all
+      messageData = serialBuffer;
+    }
+
+    // Prepare data to send
+    uint8_t dataLen = messageData.length();
     if (dataLen > MAX_DATA_SIZE) {
       dataLen = MAX_DATA_SIZE;
     }
 
     uint8_t dataToSend[MAX_DATA_SIZE];
-    serialBuffer.getBytes(dataToSend, dataLen + 1);
+    messageData.getBytes(dataToSend, dataLen + 1);
 
     // Send data via ESP-NOW
-    esp_now_send(broadcastAddress, dataToSend, dataLen);
+    if (useSpecificMac) {
+      esp_now_send(targetMac, dataToSend, dataLen);
+      Serial.print("[ESP-NOW] Sent to specific device: ");
+      Serial.println(messageData);
+    } else {
+      esp_now_send(broadcastAddress, dataToSend, dataLen);
+      Serial.print("[ESP-NOW] Broadcast: ");
+      Serial.println(messageData);
+    }
 
     // Clear buffer
     serialBuffer = "";

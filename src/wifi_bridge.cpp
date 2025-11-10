@@ -87,8 +87,13 @@ void processSerialData(String& line) {
     char jsonBuffer[MQTT_BUFFER_SIZE];
     serializeJson(doc, jsonBuffer);
 
-    if (mqtt.publish(topic_espnow_to_mqtt, jsonBuffer)) {
-      Serial.println("[MQTT] Published");
+    // Build topic with MAC address: espnow/from_device/AA:BB:CC:DD:EE:FF
+    char topic[64];
+    snprintf(topic, sizeof(topic), "%s/%s", topic_espnow_to_mqtt, macStr);
+
+    if (mqtt.publish(topic, jsonBuffer)) {
+      Serial.print("[MQTT] Published to: ");
+      Serial.println(topic);
     } else {
       Serial.println("[MQTT] Publish failed");
     }
@@ -111,9 +116,42 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   Serial.println(message);
 
-  // Forward to serial (which ESP-NOW bridge will transmit)
-  // Send as plain text with newline - the ESP-NOW bridge expects text lines
-  Serial.println(message);
+  // Extract MAC address from topic if present
+  // Expected format: espnow/to_device/AA:BB:CC:DD:EE:FF
+  String topicStr = String(topic);
+  int lastSlash = topicStr.lastIndexOf('/');
+
+  if (lastSlash != -1 && lastSlash < topicStr.length() - 1) {
+    String macStr = topicStr.substring(lastSlash + 1);
+
+    // Check if it looks like a MAC address (17 chars with colons)
+    if (macStr.length() == 17 && macStr.indexOf(':') != -1) {
+      // Remove colons from MAC address for serial format
+      String macHex = "";
+      for (int i = 0; i < macStr.length(); i++) {
+        if (macStr[i] != ':') {
+          macHex += macStr[i];
+        }
+      }
+
+      // Send to serial in format: MAC|DATA\n
+      // The ESP-NOW bridge will parse this and send to specific device
+      Serial.print(macHex);
+      Serial.print("|");
+      Serial.println(message);
+
+      Serial.print("[SERIAL] Sent to specific MAC: ");
+      Serial.println(macStr);
+    } else {
+      // No valid MAC in topic, send as broadcast (just data)
+      Serial.println(message);
+      Serial.println("[SERIAL] Sent as broadcast");
+    }
+  } else {
+    // No MAC in topic, send as broadcast (just data)
+    Serial.println(message);
+    Serial.println("[SERIAL] Sent as broadcast");
+  }
 }
 
 void setupWiFi() {
@@ -160,10 +198,18 @@ boolean reconnectMQTT() {
 
   if (connected) {
     Serial.println("[MQTT] Connected!");
+
+    // Subscribe to base topic (broadcast)
     Serial.print("[MQTT] Subscribing to: ");
     Serial.println(topic_mqtt_to_espnow);
-
     mqtt.subscribe(topic_mqtt_to_espnow);
+
+    // Subscribe to device-specific topics with wildcard
+    char wildcardTopic[64];
+    snprintf(wildcardTopic, sizeof(wildcardTopic), "%s/#", topic_mqtt_to_espnow);
+    Serial.print("[MQTT] Subscribing to: ");
+    Serial.println(wildcardTopic);
+    mqtt.subscribe(wildcardTopic);
 
     // Publish connection message
     StaticJsonDocument<200> doc;
